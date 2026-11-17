@@ -8,6 +8,7 @@ const app = express();
 app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
 
+// Подключение к облачной БД (Render) или локальной PostgreSQL
 const pool = new Pool(
   process.env.DATABASE_URL
     ? {
@@ -22,7 +23,58 @@ const pool = new Pool(
         port: process.env.DB_PORT,
       }
 );
-const uniCount = await pool.query('SELECT COUNT(*) FROM universities');
+
+// 1. Инициализация таблиц и автозаполнение стартовыми данными
+async function initDB() {
+  try {
+    await pool.query(`
+      CREATE TABLE IF NOT EXISTS users (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(100) NOT NULL,
+        grade VARCHAR(20),
+        email VARCHAR(150) UNIQUE NOT NULL,
+        password TEXT NOT NULL,
+        quiz_score INTEGER DEFAULT 0,
+        user_xp INTEGER DEFAULT 0,
+        user_fish INTEGER DEFAULT 3,
+        mascot_hunger INTEGER DEFAULT 50,
+        last_feed_date DATE DEFAULT CURRENT_DATE,
+        done_tasks JSONB DEFAULT '[]'::jsonb,
+        quiz_answers JSONB DEFAULT '[]'::jsonb,
+        recommended_universities JSONB DEFAULT '[]'::jsonb,
+        selected_universities JSONB DEFAULT '[]'::jsonb,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS user_fish INTEGER DEFAULT 3;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS mascot_hunger INTEGER DEFAULT 50;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS last_feed_date DATE DEFAULT CURRENT_DATE;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS recommended_universities JSONB DEFAULT '[]'::jsonb;
+      ALTER TABLE users ADD COLUMN IF NOT EXISTS selected_universities JSONB DEFAULT '[]'::jsonb;
+
+      CREATE TABLE IF NOT EXISTS universities (
+        id SERIAL PRIMARY KEY,
+        name VARCHAR(255) NOT NULL,
+        category VARCHAR(100) NOT NULL,
+        tier VARCHAR(50) NOT NULL,
+        min_score INTEGER NOT NULL,
+        city VARCHAR(100) NOT NULL,
+        tuition_fee INTEGER DEFAULT 0
+      );
+
+      CREATE TABLE IF NOT EXISTS roadmap_tasks (
+        id VARCHAR(50) PRIMARY KEY,
+        tier_number INTEGER NOT NULL,
+        tier_title VARCHAR(150) NOT NULL,
+        task_index INTEGER NOT NULL,
+        title VARCHAR(255) NOT NULL,
+        xp INTEGER NOT NULL DEFAULT 50,
+        is_daily BOOLEAN DEFAULT FALSE
+      );
+    `);
+
+    // Автозаполнение университетов, если таблица пустая
+    const uniCount = await pool.query('SELECT COUNT(*) FROM universities');
     if (parseInt(uniCount.rows[0].count) === 0) {
       await pool.query(`
         INSERT INTO universities (name, category, tier, min_score, city, tuition_fee) VALUES
@@ -62,60 +114,12 @@ const uniCount = await pool.query('SELECT COUNT(*) FROM universities');
       `);
       console.log('🗺️ Стартовые задания дорожной карты загружены.');
     }
-// 1. Инициализация и обновление таблиц БД
-async function initDB() {
-  try {
-      await pool.query(`
-        CREATE TABLE IF NOT EXISTS users (
-          id SERIAL PRIMARY KEY,
-          name VARCHAR(100) NOT NULL,
-          grade VARCHAR(20),
-          email VARCHAR(150) UNIQUE NOT NULL,
-          password TEXT NOT NULL,
-          quiz_score INTEGER DEFAULT 0,
-          user_xp INTEGER DEFAULT 0,
-          user_fish INTEGER DEFAULT 3,
-          mascot_hunger INTEGER DEFAULT 50,
-          last_feed_date DATE DEFAULT CURRENT_DATE,
-          done_tasks JSONB DEFAULT '[]'::jsonb,
-          quiz_answers JSONB DEFAULT '[]'::jsonb,
-          recommended_universities JSONB DEFAULT '[]'::jsonb,
-          selected_universities JSONB DEFAULT '[]'::jsonb,
-          created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-        );
 
-        ALTER TABLE users ADD COLUMN IF NOT EXISTS user_fish INTEGER DEFAULT 3;
-        ALTER TABLE users ADD COLUMN IF NOT EXISTS mascot_hunger INTEGER DEFAULT 50;
-        ALTER TABLE users ADD COLUMN IF NOT EXISTS last_feed_date DATE DEFAULT CURRENT_DATE;
-        ALTER TABLE users ADD COLUMN IF NOT EXISTS recommended_universities JSONB DEFAULT '[]'::jsonb;
-        ALTER TABLE users ADD COLUMN IF NOT EXISTS selected_universities JSONB DEFAULT '[]'::jsonb;
-      
-      CREATE TABLE IF NOT EXISTS universities (
-        id SERIAL PRIMARY KEY,
-        name VARCHAR(255) NOT NULL,
-        category VARCHAR(100) NOT NULL,
-        tier VARCHAR(50) NOT NULL,
-        min_score INTEGER NOT NULL,
-        city VARCHAR(100) NOT NULL,
-        tuition_fee INTEGER DEFAULT 0
-      );
-
-      CREATE TABLE IF NOT EXISTS roadmap_tasks (
-        id VARCHAR(50) PRIMARY KEY,
-        tier_number INTEGER NOT NULL,
-        tier_title VARCHAR(150) NOT NULL,
-        task_index INTEGER NOT NULL,
-        title VARCHAR(255) NOT NULL,
-        xp INTEGER NOT NULL DEFAULT 50,
-        is_daily BOOLEAN DEFAULT FALSE
-      );
-    `);
     console.log('✅ База PostgreSQL подключена, таблицы готовы.');
   } catch (err) {
     console.error('❌ ОШИБКА ИНИЦИАЛИЗАЦИИ БАЗЫ:', err.message);
   }
 }
-
 // 2. Маршруты API
 
 // Регистрация
@@ -145,12 +149,12 @@ app.post('/api/login', async (req, res) => {
     const isMatch = await bcrypt.compare(password, user.password);
     if (!isMatch) return res.status(400).json({ error: 'Неверный пароль' });
 
-    const today = new Date().toISOString().slice(0, 10);
-    const lastFeed = user.last_feed_date ? new Date(user.last_feed_date).toISOString().slice(0, 10) : '';
+    const today = new Date().toLocaleDateString('sv-SE');
+    const lastFeed = user.last_feed_date ? new Date(user.last_feed_date).toLocaleDateString('sv-SE') : '';
     let currentHunger = user.mascot_hunger ?? 50;
 
     if (today !== lastFeed) {
-      currentHunger = 20; // Сбрасываем сытость до 20% каждый новый день
+      currentHunger = 20;
       await pool.query(
         'UPDATE users SET mascot_hunger = $1, last_feed_date = CURRENT_DATE WHERE id = $2',
         [currentHunger, user.id]
@@ -216,7 +220,57 @@ app.get('/api/roadmap-tasks', async (req, res) => {
   }
 });
 
-// Подбор университетов
+// Получение полного списка университетов
+app.get('/api/universities', async (req, res) => {
+  try {
+    const result = await pool.query('SELECT * FROM universities ORDER BY name ASC');
+    res.json(result.rows);
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Получение сохраненных университетов пользователя
+app.get('/api/user-universities/:userId', async (req, res) => {
+  try {
+    const result = await pool.query(
+      'SELECT recommended_universities, selected_universities FROM users WHERE id = $1',
+      [req.params.userId]
+    );
+    if (!result.rows[0]) return res.status(404).json({ error: 'Пользователь не найден' });
+    res.json({
+      recommended: result.rows[0].recommended_universities || [],
+      selected: result.rows[0].selected_universities || []
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Сохранение рекомендованных и выбранных вручную университетов в БД
+app.post('/api/save-universities', async (req, res) => {
+  const { userId, recommended, selected } = req.body;
+  if (!userId) return res.status(400).json({ error: 'userId обязателен' });
+
+  try {
+    await pool.query(
+      `UPDATE users 
+       SET recommended_universities = COALESCE($1::jsonb, recommended_universities),
+           selected_universities = COALESCE($2::jsonb, selected_universities)
+       WHERE id = $3`,
+      [
+        recommended !== undefined ? JSON.stringify(recommended) : null,
+        selected !== undefined ? JSON.stringify(selected) : null,
+        userId
+      ]
+    );
+    res.json({ message: 'Университеты сохранены в БД' });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// Алгоритм подбора университетов по ответам теста
 app.post('/api/recommend-universities', async (req, res) => {
   const { answers } = req.body;
   if (!answers || !Array.isArray(answers) || answers.length === 0) {
@@ -279,63 +333,6 @@ app.post('/api/recommend-universities', async (req, res) => {
     res.json(result.rows);
   } catch (err) {
     console.error('Ошибка алгоритма подбора:', err.message);
-    res.status(500).json({ error: err.message });
-  }
-});
-// Получение всех университетов для выдвигающегося списка
-app.get('/api/universities', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM universities ORDER BY name ASC');
-    res.json(result.rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-app.get('/api/universities', async (req, res) => {
-  try {
-    const result = await pool.query('SELECT * FROM universities ORDER BY name ASC');
-    res.json(result.rows);
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Получение сохраненных университетов пользователя (рекомендованных и выбранных вручную)
-app.get('/api/user-universities/:userId', async (req, res) => {
-  try {
-    const result = await pool.query(
-      'SELECT recommended_universities, selected_universities FROM users WHERE id = $1',
-      [req.params.userId]
-    );
-    if (!result.rows[0]) return res.status(404).json({ error: 'Пользователь не найден' });
-    res.json({
-      recommended: result.rows[0].recommended_universities || [],
-      selected: result.rows[0].selected_universities || []
-    });
-  } catch (err) {
-    res.status(500).json({ error: err.message });
-  }
-});
-
-// Сохранение рекомендованных и/или выбранных вручную университетов в БД
-app.post('/api/save-universities', async (req, res) => {
-  const { userId, recommended, selected } = req.body;
-  if (!userId) return res.status(400).json({ error: 'userId обязателен' });
-
-  try {
-    await pool.query(
-      `UPDATE users 
-       SET recommended_universities = COALESCE($1::jsonb, recommended_universities),
-           selected_universities = COALESCE($2::jsonb, selected_universities)
-       WHERE id = $3`,
-      [
-        recommended !== undefined ? JSON.stringify(recommended) : null,
-        selected !== undefined ? JSON.stringify(selected) : null,
-        userId
-      ]
-    );
-    res.json({ message: 'Университеты сохранены в БД' });
-  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
