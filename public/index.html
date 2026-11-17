@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Навигатор будущего после школы</title>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="landing-view">
+  <header>
+    <div class="nav-container">
+      <a class="logo-placeholder" style="background-image: url(logo2.png);background-size: cover;" onclick="toggleView(false)"></a>
+      <ul class="nav-links">
+        <li><a href="#paths">Направления</a></li>
+        <li><a href="quiz.html">Тест на готовность</a></li>
+        <li><a href="roadmap.html">Дерево развития</a></li>
+      </ul>
+      <div class="auth-buttons" id="header-auth">
+        <button class="btn btn-outline" onclick="openAuth('login')">Войти</button>
+        <button class="btn btn-primary" onclick="openAuth('register')">Создать аккаунт</button>
+      </div>
+    </div>
+  </header>
+
+  <main>
+    <section class="hero">
+      <div>
+        <span class="hero-badge">Бесплатный навигатор для выпускников</span>
+        <h1>Не знаешь, куда идти после школы? Найди свой сценарий.</h1>
+        <p>Сравни вуз, колледж, старт карьеры или год на поиск себя. Пройди тест из 20 вопросов и получи пошаговое дерево развития.</p>
+        <div class="hero-actions">
+          <button class="btn btn-primary btn-large" id="hero-reg-btn" onclick="openAuth('register')">Начать бесплатно</button>
+          <a href="quiz.html" class="btn btn-outline btn-large">Проверить готовность</a>
+        </div>
+      </div>
+
+      <div class="promo-card">
+        <h2>Зачем создавать аккаунт?</h2>
+        <p class="subtitle">Личный кабинет сохранит весь твой прогресс в базе данных:</p>
+        <ul class="perks-list">
+          <li><span class="check-icon">✓</span><span><strong>Подбор вузов:</strong> оптимистичный, реалистичный и запасной варианты.</span></li>
+          <li><span class="check-icon">✓</span><span><strong>Дерево развития:</strong> персональные этапы и уровни опыта (XP).</span></li>
+          <li><span class="check-icon">✓</span><span><strong>Задания дня:</strong> ежедневные шаги для подготовки к поступлению.</span></li>
+        </ul>
+        <button class="btn btn-primary btn-full" id="card-reg-btn" onclick="openAuth('register')">Создать бесплатный аккаунт →</button>
+      </div>
+    </section>
+
+    <section class="paths-section" id="paths">
+      <div class="section-container">
+        <h2 class="section-title">4 главных пути после школы</h2>
+        <p class="section-subtitle">Поможем взвесить все за и против</p>
+        <div class="grid-4">
+          <div class="path-card"><h3>Университет</h3><p>Фундаментальное образование, отсрочка и доступ к сложным профессиям.</p></div>
+          <div class="path-card"><h3>Колледж</h3><p>Быстрый выход на рынок труда, практика и поступление в вуз без ЕГЭ.</p></div>
+          <div class="path-card"><h3>Курсы и работа</h3><p>Освоение цифровых навыков за 3–9 месяцев и первый заработок.</p></div>
+          <div class="path-card"><h3>Gap Year</h3><p>Волонтёрство, стажировки и осознанный выбор без спешки.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="bottom-cta" id="bottom-cta">
+      <h2>Готов собрать свою карту будущего?</h2>
+      <p>Зарегистрируйся сейчас, чтобы сохранить результаты теста и открыть дерево развития.</p>
+      <button class="btn btn-white" onclick="openAuth('register')">Перейти к регистрации</button>
+    </section>
+  </main>
+
+  <footer><p>© 2026 Платформа осознанного выбора после школы.</p></footer>
+</div>
+
+<div id="auth-view" class="auth-page hidden">
+  <a class="back-link" onclick="toggleView(false)">← Вернуться на главную</a>
+  <div class="auth-box">
+    <div class="auth-tabs">
+      <button id="tab-register" class="tab-btn active" onclick="switchTab('register')">Регистрация</button>
+      <button id="tab-login" class="tab-btn" onclick="switchTab('login')">Вход</button>
+    </div>
+
+    <form id="form-register" onsubmit="saveUser(event, true)">
+      <h2>Создай аккаунт</h2>
+      <p class="auth-desc">Это бесплатно и займёт меньше минуты</p>
+      <div class="form-group"><label>Твоё имя</label><input type="text" id="reg-name" placeholder="Как тебя зовут?" required></div>
+      <div class="form-group">
+        <label>Статус</label>
+        <select id="reg-grade" required>
+          <option value="" disabled selected>Выбери свой класс</option>
+          <option value="9">9 класс</option>
+          <option value="10">10 класс</option>
+          <option value="11">11 класс</option>
+          <option value="grad">Уже окончил(а) школу</option>
+        </select>
+      </div>
+      <div class="form-group"><label>Почта</label><input type="email" id="reg-email" placeholder="name@example.com" required></div>
+      <div class="form-group"><label>Пароль</label><input type="password" id="reg-pass" placeholder="Минимум 6 символов" minlength="6" required></div>
+      <button type="submit" class="btn btn-primary btn-full">Создать аккаунт</button>
+    </form>
+
+    <form id="form-login" class="hidden" onsubmit="saveUser(event, false)">
+      <h2>С возвращением!</h2>
+      <p class="auth-desc">Войди, чтобы открыть своё дерево развития</p>
+      <div class="form-group"><label>Почта</label><input type="email" id="login-email" placeholder="name@example.com" required></div>
+      <div class="form-group"><label>Пароль</label><input type="password" id="login-pass" placeholder="Введи пароль" required></div>
+      <button type="submit" class="btn btn-primary btn-full">Войти в аккаунт</button>
+    </form>
+  </div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+
+function updateHeader() {
+  const name = localStorage.getItem('userName');
+  if (!name) return;
+
+  if ($('bottom-cta')) $('bottom-cta').classList.add('hidden');
+  if ($('hero-reg-btn')) { $('hero-reg-btn').textContent = 'Моё дерево развития →'; $('hero-reg-btn').onclick = () => location.href = 'roadmap.html'; }
+  if ($('card-reg-btn')) { $('card-reg-btn').textContent = 'Перейти в дерево развития →'; $('card-reg-btn').onclick = () => location.href = 'roadmap.html'; }
+  $('header-auth').innerHTML = `
+    <div style="display:flex;align-items:center;gap:0.8rem;flex-wrap:wrap;">
+      <a href="roadmap.html" style="font-weight:600;text-decoration:none;color:var(--text-main);">${name}</a>
+      <button class="btn btn-outline" style="padding:0.4rem 0.8rem;font-size:0.85rem;" onclick="logout()">Выйти</button>
+    </div>`;
+}
+
+function toggleView(showAuth) {
+  $('landing-view').classList.toggle('hidden', showAuth);
+  $('auth-view').classList.toggle('hidden', !showAuth);
+  window.scrollTo(0, 0);
+}
+
+function switchTab(mode) {
+  const isReg = mode === 'register';
+  $('tab-register').classList.toggle('active', isReg);
+  $('tab-login').classList.toggle('active', !isReg);
+  $('form-register').classList.toggle('hidden', !isReg);
+  $('form-login').classList.toggle('hidden', isReg);
+}
+
+function openAuth(mode) { toggleView(true); switchTab(mode); }
+
+async function saveUser(e, isReg) {
+  e.preventDefault();
+  const url = isReg ? '/api/register' : '/api/login';
+  const body = isReg
+    ? { name: $('reg-name').value.trim(), grade: $('reg-grade').value, email: $('reg-email').value.trim(), password: $('reg-pass').value }
+    : { email: $('login-email').value.trim(), password: $('login-pass').value };
+
+  try {
+    const res = await fetch(url, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+    const data = await res.json();
+    if (!res.ok) return alert(data.error || 'Ошибка авторизации');
+
+    localStorage.setItem('userId', data.userId);
+    localStorage.setItem('userName', data.name);
+
+    if (isReg) {
+      window.location.href = 'quiz.html';
+    } else {
+      localStorage.setItem('quizScore', data.quizScore || 0);
+      localStorage.setItem('userXP', data.userXP || 0);
+      localStorage.setItem('doneTasks', JSON.stringify(data.doneTasks || []));
+      window.location.href = 'roadmap.html';
+    }
+  } catch (err) {
+    alert('Ошибка связи с сервером.');
+  }
+}
+
+function logout() { localStorage.clear(); location.reload(); }
+document.addEventListener('DOMContentLoaded', updateHeader);
+</script>
+</body>
+</html>

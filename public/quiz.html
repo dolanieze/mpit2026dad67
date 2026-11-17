@@ -1,0 +1,165 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Оценка шансов</title>
+<link rel="stylesheet" href="style.css">
+<style>
+.qw{max-width:680px;margin:2rem auto;padding:0 1rem}.qc{padding:1.8rem;border-radius:12px;background:#FFFFFF;border:1px solid var(--border-color)}
+.bar{height:6px;border-radius:6px;overflow:hidden;margin-bottom:1rem;background:#E2E8F0}.fill{height:100%;background:#1D3557;width:3.33%;transition:.3s}
+.tag{font-size:.82rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:.3rem}.qt{font-size:1.3rem;margin-bottom:1rem;color:var(--text-main)}
+.opts{display:flex;flex-direction:column;gap:.65rem;margin-bottom:1.2rem}.opt{text-align:left;padding:.85rem 1rem;border:1px solid var(--border-color);border-radius:8px;font-size:.95rem;cursor:pointer;transition:.2s;background:#FFFFFF;color:var(--text-main)}
+.opt:hover{border-color:#1D3557;background:#F8FAFC}
+.opt.sel{font-weight:600;border-color:#1D3557;background:#F1F5F9}
+.nav{display:flex;justify-content:space-between}
+.res{text-align:center}.bdg{display:none}
+.ul{text-align:left;margin-bottom:1.2rem;display:flex;flex-direction:column;gap:.55rem}
+.ui{padding:.9rem;border-radius:8px;border:1px solid var(--border-color);display:flex;justify-content:space-between;align-items:center;gap:.5rem;flex-wrap:wrap;background:#FFFFFF;transition:.2s}
+.ui.picked{border-color:#10B981;background:#ECFDF5}
+
+.other-unis{text-align:left;margin:1.2rem 0 1.4rem;border:1px solid var(--border-color);border-radius:10px;background:#F8FAFC;overflow:hidden}
+.other-unis summary{padding:.9rem 1.1rem;font-weight:600;font-size:.95rem;color:#1D3557;cursor:pointer;list-style:none;display:flex;justify-content:space-between;align-items:center;user-select:none}
+.other-unis summary::-webkit-details-marker{display:none}
+.other-unis summary::after{content:'▼';font-size:.75rem;transition:transform .25s ease}
+.other-unis[open] summary::after{transform:rotate(180deg)}
+.other-unis[open] summary{border-bottom:1px solid var(--border-color);background:#F1F5F9}
+.other-unis-body{padding:1rem}
+.uni-search-input{width:100%;padding:.65rem .9rem;border:1px solid var(--border-color);border-radius:8px;font-size:.9rem;margin-bottom:.8rem;background:#FFFFFF}
+.other-unis-list{max-height:320px;overflow-y:auto;display:flex;flex-direction:column;gap:.5rem;padding-right:4px}
+</style>
+</head>
+<body>
+<header><div class="nav-container"><a class="logo-placeholder" style="background-image: url(logo2.png);background-size: cover;" href="index.html"></a><div style="display:flex;align-items:center;gap:.8rem"><span id="un" style="font-weight:600"></span><a href="index.html" class="btn btn-outline" style="padding:.4rem .8rem">На главную</a></div></div></header>
+<main class="qw">
+  <div class="qc" id="qb">
+    <div class="bar"><div class="fill" id="bar"></div></div><span class="tag" id="st"></span><h2 class="qt" id="qt"></h2><div class="opts" id="op"></div>
+    <div class="nav"><button class="btn btn-outline" id="pr" disabled>← Назад</button><button class="btn btn-primary" id="nx" disabled>Далее →</button></div>
+  </div>
+  <div class="qc res hidden" id="rb">
+    <h2 class="qt" id="rt"></h2><p id="rd" style="color:var(--text-muted);margin-bottom:1.1rem"></p>
+    <div class="ul" id="ul"></div>
+
+    <details class="other-unis" id="other-unis-box">
+      <summary>Хотите выбрать другой университет?</summary>
+      <div class="other-unis-body">
+        <input type="text" id="other-uni-search" class="uni-search-input" placeholder="Поиск по названию, городу или профилю..." oninput="filterOtherUnis()">
+        <div class="other-unis-list" id="other-unis-list">
+          <p style="color:var(--text-muted);font-size:.9rem">Нажмите, чтобы загрузить список...</p>
+        </div>
+      </div>
+    </details>
+
+    <div style="display:flex;gap:.8rem;justify-content:center;flex-wrap:wrap"><a href="roadmap.html" class="btn btn-primary">Дерево развития →</a><button class="btn btn-outline" id="re">Заново</button></div>
+  </div>
+</main>
+<script>
+const $=id=>document.getElementById(id);try{const n=localStorage.getItem('userName');if(n)$('un').textContent=n}catch(e){}
+
+const d = [
+  {q:"1. Какие оценки преобладают в твоем школьном аттестате?", a:["Тройки и четвёрки", "Твёрдые четвёрки", "Почти одни пятвёрки, иду на медаль"]},
+  {q:"2. На какой балл ты рассчитываешь на экзаменах (ЕГЭ/ОГЭ) по профильным предметам?", a:["До 55 баллов", "56–75 баллов", "76–100 баллов"]},
+  {q:"3. Как давно и системно ты готовишься к поступлению?", a:["Ещё не начинал(а), рассчитываю на текущие знания", "Сам(а) занимаюсь последние несколько месяцев", "Системно готовлюсь с репетиторами или на курсах более года"]},
+  {q:"4. Есть ли у тебя победы или призовые места в олимпиадах?", a:["Не участвую", "Школьный или муниципальный этап", "Призёр/победитель регионального этапа или перечневых олимпиад"]},
+  {q:"5. Каков твой уровень владения иностранным языком?", a:["Базовый школьный (читаю со словарем)", "Уверенный разговорный (B1–B2)", "Свободный, профессиональный (C1+)"]},
+  {q:"6. Как ты справляешься с нестандартными и олимпиадными задачами?", a:["Пропускаю или решаю с трудом", "Пытаюсь разобраться с подсказкой", "Решаю с удовольствием и ищу сложные кейсы"]},
+  {q:"7. Рассматриваешь ли ты платное обучение или строго ориентирован(а) на бюджет?", a:["Строго только бюджет", "Да, платное возможно в разумных пределах", "Готов(а) рассматривать любые программы, включая топовые платные"]},
+  {q:"8. Каков твой максимальный годовой бюджет на обучение (если платное)?", a:["До 150 000 ₽ в год", "От 150 000 до 350 000 ₽ в год", "Более 350 000 ₽ в год / ограничений нет"]},
+  {q:"9. Готов(а) ли ты рассмотреть целевое обучение с последующей отработкой?", a:["Нет, хочу полную свободу после выпуска", "Рассмотрю как запасной вариант", "Да, уже активно ищу предприятие-заказчика"]},
+  {q:"10. Есть ли у тебя индивидуальные достижения (ГТО, волонтёрство, значки, сочинение)?", a:["Нет", "Есть базовые достижения (волонтёрство, ГТО)", "Богатое портфолио (конкурсы, медали, волонтёрские книжки)"]},
+  {q:"11. К какой широкой предметной области у тебя больше всего лежит душа?", a:["Гуманитарные и социальные науки", "Точные науки, математика и IT", "Естественные науки и медицина"]},
+  {q:"12. Какой формат будущей работы привлекает тебя сильнее всего?", a:["Ручная работа, техника, производство", "Работа с людьми, управление, коммуникация", "Работа с кодом, данными, аналитика и исследования"]},
+  {q:"13. Насколько чётко ты представляешь свою будущую профессию?", a:["Совсем не представляю, выбираю вуз по баллам", "Выбрал(а) широкую сферу (например, IT или Медицина)", "Четко знаю конкретную специальность и должность"]},
+  {q:"14. Как ты относишься к научно-исследовательской работе?", a:["Скучно, хочу сразу применять навыки на практике", "Нормально, если тема действительно увлекает", "Обожаю науку, планирую поступать в аспирантуру"]},
+  {q:"15. Есть ли у тебя собственные проекты, код, статьи или портфолио?", a:["Нет, только школьные задания", "Есть пара проектов или творческих работ", "Есть реальные кейсы, пет-проекты или публикации"]},
+  {q:"16. Какой тип задач доставляет тебе больше удовольствия?",a:["Практическое создание чего-то осязаемого","Решение логических и расчетных задач","Написание текстов, общение, организация процессов"]},
+  {q:"17. Важно ли для тебя, чтобы специальность была связана с высокими технологиями?",a:["Не принципиально","Желательно, но не на первом месте","Критически важно, технологии — мой главный фокус"]},
+  {q:"18. Готов(а) ли ты к переезду в другой город или регион ради учёбы?",a:["Нет, планирую учиться только дома","Готов(а) при условии хорошего общежития","Готов(а) переехать в любой крупный образовательный центр страны"]},
+  {q:"19. Насколько важна для тебя развитая инфраструктура кампуса и общежития?",a:["Не критично, главное — качество образования","Желательно иметь комфортные условия проживания","Критически важно (современный кампус, коворкинги, спорткомплексы)"]},
+  {q:"20. Какой размер города для тебя наиболее комфортен для жизни?",a:["Маленький уютный студенческий город","Крупный региональный центр (миллионник)","Мегаполис (Москва, Санкт-Петербург)"]},
+  {q:"21. Насколько важен для тебя бренд и общегосударственный рейтинг вуза?",a:["Главное — получить диплом без лишнего стресса","Важен баланс между престижем и адекватной нагрузкой","Только ведущие национальные исследовательские университеты (топ-10)"]},
+  {q:"22. Какой формат учебного процесса тебе ближе?",a:["Максимум практических навыков и стажировок с 1 курса","Классическая фундаментальная академическая база (лекции, семинары)","Интенсивный проектный подход (работа в командах над кейсами)"]},
+  {q:"23. Какую недельную учебную нагрузку ты готов(а) выдерживать?",a:["Умеренную, чтобы оставалось время на хобби и отдых","Интенсивную, готов(а) много учиться ради результата","Режим хардкор: учёба почти 24/7 ради максимальных успехов"]},
+  {q:"24. Планируешь ли ты совмещать учёбу с работой или стажировками?",a:["Нет, первые годы хочу полностью посветить учёбе","Попробую подрабатывать со 2–3 курса","Планирую искать стажировку или работу уже на 1–2 курсе"]},
+  {q:"25. Насколько ты самостоятелен(а) в планировании своего времени?",a:["Часто откладываю всё на последний момент, нужен контроль","Справляюсь по составленному плану","Полностью самоорганизован(а), умею расставлять приоритеты"]},
+  {q:"26. Насколько для тебя критична военная кафедра в университете?",a:["Совсем не актуально","Было бы неплохо иметь такую возможность","Обязательное условие при выборе вуза"]},
+  {q:"27. Какой у тебя запасной план на случай высокого конкурса на бюджете?",a:["Пока не думал(а) об этом","Рассмотрю смежные специальности с меньшим конкурсом","Составлен четкий список из 5 вузов по приоритетам от сложных к запасным"]},
+  {q:"28. Рассматриваешь ли ты колледжи при вузах как альтернативу?",a:["Нет, только высшее образование","Возможно, как быстрый старт без сдачи ЕГЭ","Да, отличный вариант с последующим переходом в вуз"]},
+  {q:"29. В каком темпе ты предпочитаешь двигаться по жизни?",a:["Спокойно и размеренно, избегая выгорания","В среднем темпе с четкими дедлайнами","В режиме постоянного вызова и роста"]},
+  {q:"30. Готов(а) ли ты менять траекторию обучения, если поймешь, что ошибся с выбором?",a:["Боюсь перемен, хочу выбрать один раз и надолго","Скорее всего, доучусь до конца, даже если разонравится","Легко переведусь на другое направление или освою параллельные навыки"]}
+];
+
+let s=0,ans=Array(30).fill(null),allUniversities=[],customSelectedUnis=[];
+const totalQ=d.length;
+try{localStorage.removeItem('selectedUniversities')}catch(e){}
+
+function draw(){
+  const x=d[s];
+  $('st').textContent=`Вопрос ${s+1} из ${totalQ}`;
+  $('qt').textContent=x.q;
+  $('bar').style.width=`${((s+1)/totalQ)*100}%`;
+  $('op').innerHTML=x.a.map((t,i)=>`<button class="opt ${ans[s]===i?'sel':''}" onclick="pick(${i})">${t}</button>`).join('');
+  $('pr').disabled=!s;
+  $('nx').disabled=ans[s]===null;
+  $('nx').textContent=s===(totalQ-1)?'Узнать рекомендации':'Далее →';
+}
+function pick(i){ans[s]=i;draw()}
+$('pr').onclick=()=>{if(s>0){s--;draw()}};
+
+$('other-unis-box').addEventListener('toggle',async e=>{
+  if(e.target.open&&!allUniversities.length){
+    $('other-unis-list').innerHTML='<p style="color:var(--text-muted);font-size:.9rem">Загрузка университетов...</p>';
+    const uid=localStorage.getItem('userId');
+    try{
+      const [allRes,userRes]=await Promise.all([fetch('/api/universities'),uid?fetch(`/api/user-universities/${uid}`):null]);
+      allUniversities=await allRes.json();
+      if(userRes&&userRes.ok)customSelectedUnis=(await userRes.json()).selected||[];
+      filterOtherUnis();
+    }catch(err){$('other-unis-list').innerHTML='<p style="color:#DC2626;font-size:.9rem">Ошибка загрузки.</p>'}
+  }
+});
+
+async function toggleCustomUni(id){
+  const uid=localStorage.getItem('userId');
+  if(!uid)return alert('Войдите в аккаунт, чтобы сохранить выбранный университет в базу данных.');
+  customSelectedUnis=customSelectedUnis.some(u=>u.id===id)?customSelectedUnis.filter(u=>u.id!==id):[...customSelectedUnis,allUniversities.find(u=>u.id===id)].filter(Boolean);
+  filterOtherUnis();
+  fetch('/api/save-universities',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:+uid,selected:customSelectedUnis})}).catch(console.error);
+}
+
+function filterOtherUnis(){
+  const q=($('other-uni-search').value||'').toLowerCase().trim();
+  const list=allUniversities.filter(u=>u.name.toLowerCase().includes(q)||u.city.toLowerCase().includes(q)||u.category.toLowerCase().includes(q));
+  $('other-unis-list').innerHTML=list.length?list.map(u=>{
+    const picked=customSelectedUnis.some(item=>item.id===u.id);
+    return `<div class="ui ${picked?'picked':''}" style="padding:.75rem .9rem">
+      <div style="flex:1;min-width:190px"><span style="font-weight:600;display:block;font-size:.95rem">${u.name}</span><small style="color:var(--text-muted)">${u.city} | ${u.category} | Проходной: ${u.min_score} | ${u.tuition_fee?u.tuition_fee.toLocaleString()+' ₽/год':'Бюджет'}</small></div>
+      <button class="btn ${picked?'btn-outline':'btn-primary'}" style="padding:.35rem .75rem;font-size:.8rem" onclick="toggleCustomUni(${u.id})">${picked?'✓ Выбран':'Выбрать'}</button>
+    </div>`;
+  }).join(''):'<p style="color:var(--text-muted);font-size:.9rem">Ничего не найдено.</p>';
+}
+
+$('nx').onclick=async()=>{
+  if(s<totalQ-1){s++;draw();return}
+  const sc=ans.reduce((a,v)=>a+v+1,0),xp=sc*10,uid=localStorage.getItem('userId');
+  try{localStorage.setItem('quizScore',sc);localStorage.setItem('userXP',xp)}catch(e){}
+  if(uid)await fetch('/api/save-quiz',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:+uid,score:sc,xp,answers:ans})}).catch(console.error);
+  $('qb').classList.add('hidden');$('rb').classList.remove('hidden');
+  $('rt').textContent='Персональная стратегия по вашим ответам';
+  $('rd').textContent='Алгоритм проанализировал все 30 ответов и подобрал подходящие варианты:';
+  try{
+    const res=await fetch('/api/recommend-universities',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({answers:ans})});
+    const unis=await res.json();
+    if(uid&&Array.isArray(unis))fetch('/api/save-universities',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({userId:+uid,recommended:unis})}).catch(console.error);
+    $('ul').innerHTML=unis.length?unis.map(u=>`
+      <div class="ui" style="margin-bottom:.6rem">
+        <div><span style="font-size:.75rem;font-weight:700;color:var(--text-muted);display:block;margin-bottom:3px">${u.strategy_type}</span><span style="font-weight:600;display:block;font-size:1rem">${u.name}</span><small style="color:var(--text-muted)">Город: ${u.city} | Профиль: ${u.category} | ${u.tuition_fee?u.tuition_fee.toLocaleString()+' ₽/год':'Бюджет'}</small></div>
+        <span style="color:#047857;background:#D1FAE5;padding:.3rem .6rem;border-radius:6px;font-size:.8rem;font-weight:600">${u.tier}</span>
+      </div>`).join(''):'<p style="color:var(--text-muted)">Подходящих вузов не найдено.</p>';
+  }catch(e){$('ul').innerHTML='<p style="color:#DC2626">Ошибка загрузки рекомендаций.</p>'}
+};
+
+$('re').onclick=()=>{s=0;ans.fill(null);$('other-unis-box').removeAttribute('open');$('rb').classList.add('hidden');$('qb').classList.remove('hidden');draw()};
+draw();
+</script>
+</body>
+</html>
